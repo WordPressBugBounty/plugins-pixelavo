@@ -1,0 +1,8 @@
+{
+	"name": "pixelavo",
+	"title": "Pixelavo",
+	"keywords": [],
+	"scripts": {
+		"zip": "wp dist-archive . ~/Desktop --filename-format={name}-v{version}-installable"
+	}
+}
