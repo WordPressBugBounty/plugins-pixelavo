@@ -6,7 +6,7 @@
  * Plugin URI: https://pixelavo.com/
  * Author:      HasThemes
  * Author URI: https://hasthemes.com/
- * Version:     1.5.3
+ * Version:     1.5.4
  * Requires at least: 5.0
  * Requires PHP: 7.4
  * License:     GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 /**
  * Plugin const
  */
-define('PIXELAVO_VERSION', '1.5.3');
+define('PIXELAVO_VERSION', '1.5.4');
 define('PIXELAVO_PL_ROOT', __FILE__);
 define('PIXELAVO_PL_URL', plugins_url('/', PIXELAVO_PL_ROOT));
 define('PIXELAVO_PL_PATH', plugin_dir_path(PIXELAVO_PL_ROOT));

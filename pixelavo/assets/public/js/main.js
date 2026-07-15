@@ -422,13 +422,24 @@
             }
         }
         
-        if(other_events.signup === 'on' && pixelavo?.user_login && pixelavo.user_signup) {
-            fireEvent({track: 'track', name: 'CompleteRegistration', data: pixelavo.common_params})
-        }
-        
-        if(other_events.login === 'on' && pixelavo.user_login && !pixelavo.user_signup) {
-            fireEvent({track: 'trackCustom', name: 'Login', data: pixelavo.common_params})
-        }
+        // Login / CompleteRegistration are fired SERVER-SIDE (Conversions API).
+        // The browser fires fbq ONLY, reusing the server-generated event_id so
+        // Facebook deduplicates the pair. The event descriptors ride in the
+        // `pixelavo_srv_evt` cookie (survives post-login redirect hops); we read
+        // it, fire, then clear it so it runs once. No AJAX/CAPI, no credentials.
+        (function fireServerAuthEvents() {
+            const match = document.cookie.match(/(?:^|;\s*)pixelavo_srv_evt=([^;]*)/);
+            if(!match) return;
+            let queue;
+            try { queue = JSON.parse(decodeURIComponent(match[1])); } catch(e) { queue = null; }
+            // Clear immediately so the events fire exactly once.
+            document.cookie = 'pixelavo_srv_evt=; Max-Age=0; path=/';
+            if(!Array.isArray(queue)) return;
+            queue.forEach((ev) => {
+                if(!ev || !ev.name || !ev.id) return;
+                fbq(ev.track === 'track' ? 'track' : 'trackCustom', ev.name, pixelavo.common_params, { eventID: ev.id });
+            });
+        })();
 
         if(other_events.tel_click === 'on') {
             document.addEventListener('click', function(e) {

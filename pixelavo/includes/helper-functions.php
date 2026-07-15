@@ -606,12 +606,30 @@ function pixelavo_run_browser_event($event_name, $data, $event_id) {
  * @param  string $eventName
  * @param  array $data
  * @param  string $eventID
+ * @param  mixed $order
+ * @param  array $args {
+ *     Optional context for events fired outside a normal front-end request.
+ *     @type string $event_source_url Override the source URL (e.g. for auth
+ *                                    events fired from wp_login where there is
+ *                                    no queried page). Default: current request.
+ *     @type bool   $skip_page_check  Bypass pixel page-targeting. Used for
+ *                                    identity events that are not page-scoped.
+ * }
  * @return void
  */
-function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order = null) {
+function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order = null, $args = []) {
     global $wp;
 
-    $current_url = home_url(add_query_arg(array(), $wp->request));
+    $args = wp_parse_args($args, [
+        'event_source_url' => '',
+        'skip_page_check'  => false,
+    ]);
+
+    if(!empty($args['event_source_url'])) {
+        $current_url = $args['event_source_url'];
+    } else {
+        $current_url = home_url(add_query_arg(array(), isset($wp->request) ? $wp->request : ''));
+    }
     $pixels = pixelavo_get_pixel_list(apply_filters('pixelavo_pixels_limit', 1));
 
     // Validate pixels is an array
@@ -671,8 +689,9 @@ function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order =
             continue;
         }
 
-        // Check page validation
-        if (!pixelavo_check_pixel_page($pixel)) {
+        // Check page validation (skipped for non-page-scoped events, e.g. auth
+        // events fired from wp_login where there is no queried page).
+        if (!$args['skip_page_check'] && !pixelavo_check_pixel_page($pixel)) {
             // Only log if we're debugging (can be noisy)
             // Uncomment for debugging: error_log("Pixelavo CAPI: Skipping {$eventName} for pixel {$pixel['pixel_id']} - page validation failed");
             continue;
@@ -730,6 +749,145 @@ function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order =
             ]);
         // Note: Non-blocking requests cannot be validated. Check Facebook Events Manager for delivery confirmation.
     }
+}
+
+/**
+ * Per-IP rate limit for the public event endpoint.
+ *
+ * The pixelavo_event AJAX action is nopriv (unauthenticated) and spends the
+ * admin's CAPI quota, so throttle it to blunt abuse. Fails open when the client
+ * IP can't be determined (never blocks a legitimate visitor we can't identify).
+ *
+ * The throttle key is REMOTE_ADDR (the TCP peer), NOT pixelavo_get_client_ip():
+ * that helper trusts client-supplied proxy headers (X-Forwarded-For, etc.), so
+ * an attacker could rotate the header to mint a fresh bucket per request and
+ * bypass the limit entirely. Sites behind a trusted reverse proxy that need a
+ * different key can override it via the pixelavo_event_rate_limit_key filter.
+ *
+ * @param int $limit  Max requests allowed per window.
+ * @param int $window Window length in seconds.
+ * @return bool True if the request is within the limit.
+ */
+function pixelavo_event_rate_ok($limit = 30, $window = 60) {
+    $limit  = (int) apply_filters('pixelavo_event_rate_limit', $limit);
+    $window = (int) apply_filters('pixelavo_event_rate_window', $window);
+    if($limit <= 0) {
+        return true;
+    }
+
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+    $ip = apply_filters('pixelavo_event_rate_limit_key', $ip);
+    if(empty($ip)) {
+        return true; // Can't identify the caller — don't block real visitors.
+    }
+
+    $key   = 'pixelavo_evt_rl_' . md5($ip);
+    $count = (int) get_transient($key);
+    if($count >= $limit) {
+        return false;
+    }
+
+    set_transient($key, $count + 1, $window);
+    return true;
+}
+
+/**
+ * Whitelist of event names allowed through the public pixelavo_event endpoint.
+ *
+ * Only the client-fired behavioral/form events are permitted. Identity events
+ * (Login, CompleteRegistration) are handled server-side and rejected upstream;
+ * e-commerce/value events never travel through this endpoint. Anything else is
+ * an attacker minting arbitrary conversions and must be blocked.
+ *
+ * @param string $event_name
+ * @return bool
+ */
+function pixelavo_is_allowed_event($event_name) {
+    $allowed = apply_filters('pixelavo_allowed_ajax_events', [
+        'PageScroll',
+        'TimeOnPage',
+        'Download',
+        'TelClick',
+    ]);
+
+    $is_allowed = in_array($event_name, $allowed, true);
+
+    // Dynamic form-submission events: FormSubmission_<form title>.
+    if(!$is_allowed && strpos($event_name, 'FormSubmission_') === 0) {
+        $is_allowed = true;
+    }
+
+    // Final say for add-ons (e.g. Pro) that need pattern/dynamic matching that a
+    // flat name list can't express — such as the <provider>Video suffix or
+    // admin-defined custom event names.
+    return (bool) apply_filters('pixelavo_is_ajax_event_allowed', $is_allowed, $event_name);
+}
+
+/**
+ * Sanitize client-supplied event data before it is forwarded to the CAPI.
+ *
+ * All events permitted through this endpoint are valueless, so monetary fields
+ * (value/currency) are stripped — an unauthenticated caller must never be able
+ * to attach a purchase amount. Nested arrays are dropped and string values are
+ * length-capped. The value/currency normalisation is retained defensively in
+ * case the whitelist is ever extended to a value-bearing event via filter.
+ *
+ * @param string $event_name
+ * @param array  $data
+ * @return array
+ */
+function pixelavo_sanitize_event_data($event_name, $data) {
+    if(!is_array($data)) {
+        return [];
+    }
+
+    // Valueless by default; a filter may opt a specific event into carrying value.
+    $valueless = (bool) apply_filters('pixelavo_event_is_valueless', true, $event_name);
+
+    foreach($data as $key => $value) {
+        // Strip monetary fields from valueless events.
+        if($valueless && in_array($key, ['value', 'currency'], true)) {
+            unset($data[$key]);
+            continue;
+        }
+
+        // These events carry only flat scalar params; drop anything nested.
+        if(is_array($value)) {
+            unset($data[$key]);
+            continue;
+        }
+
+        $value = (string) $value;
+        if(strlen($value) > 500) {
+            $value = substr($value, 0, 500);
+        }
+
+        if($key === 'value') {
+            $num = (float) $value;
+            if($num < 0) {
+                $num = 0;
+            }
+            if($num > 1000000) {
+                $num = 1000000;
+            }
+            $data[$key] = $num;
+            continue;
+        }
+
+        if($key === 'currency') {
+            $cur = strtoupper(preg_replace('/[^A-Za-z]/', '', $value));
+            if(strlen($cur) !== 3) {
+                unset($data[$key]);
+                continue;
+            }
+            $data[$key] = $cur;
+            continue;
+        }
+
+        $data[$key] = $value;
+    }
+
+    return $data;
 }
 
 

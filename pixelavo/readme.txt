@@ -1,10 +1,10 @@
 === Pixelavo - Server Side Tracking & Pixel + AI Ads Tools ===
-Contributors: hasthemes, zenaulislam, tarekht, aslamhasib, yeasinrony
+Contributors: hasthemes, zenaulislam, aslamhasib, yeasinrony
 Tags: facebook pixel, meta pixel, conversion tracking, server side tracking, WooCommerce
 Requires at least: 5.0
 Requires PHP: 7.4
 Tested up to: 7.0
-Stable tag: 1.5.3
+Stable tag: 1.5.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -181,6 +181,9 @@ This plugin connects to several third-party services to provide enhanced functio
 By using this plugin, you acknowledge that data may be transmitted to the above-mentioned third-party services only when you explicitly consent to diagnostic data sharing or when generating product feeds.
 
 == Changelog ==
+
+= Version: 1.5.4 - Date: 15-07-2026 =
+* Security: Hardened the server-side event endpoint against unauthenticated event forwarding to the Conversions API. Login and CompleteRegistration now fire server-side, permitted event names are allow-listed, monetary fields are stripped from valueless events, and the endpoint is rate-limited. Thanks to Md Amin Ullah Sheikh for the responsible disclosure (reported via WPScan).
 
 = Version: 1.5.3 - Date: 03-03-2026 =
 * Fixed: Nonce sanitization and externalized jQuery in webpack build.

@@ -54,6 +54,32 @@ class PixelAjaxEventsData{
             wp_die();
         }
 
+        // Throttle per-IP: this nopriv endpoint spends the admin's CAPI quota.
+        if (!pixelavo_event_rate_ok()) {
+            wp_send_json_error(['message' => 'Too many requests'], 429);
+            wp_die();
+        }
+
+        // Login / CompleteRegistration are fired SERVER-SIDE from the wp_login /
+        // user_register hooks (see Base::fire_server_auth_event). Reject them
+        // here so an unauthenticated caller cannot mint identity events signed
+        // with the admin's CAPI token via the publicly-localized nonce.
+        $server_only = apply_filters('pixelavo_server_only_events', ['Login', 'CompleteRegistration']);
+        if (in_array($event_name, $server_only, true)) {
+            wp_send_json_error(['message' => 'This event is handled server-side'], 403);
+            wp_die();
+        }
+
+        // Whitelist: only known client-fired events may be forwarded. Blocks an
+        // attacker minting arbitrary conversions (e.g. Purchase) via this endpoint.
+        if (!pixelavo_is_allowed_event($event_name)) {
+            wp_send_json_error(['message' => 'Event not allowed'], 403);
+            wp_die();
+        }
+
+        // Strip monetary fields from these valueless events + clamp/cap values.
+        $data = pixelavo_sanitize_event_data($event_name, $data);
+
         pixelavo_run_conversions_api($event_name, $data, $event_id);
         wp_send_json_success( [
             "data" => $data,

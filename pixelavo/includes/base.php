@@ -147,7 +147,6 @@ final class Base {
      */
     function scripts() {
         if(pixelavo_pixel_status()) {
-            $user_id = get_current_user_id();
             wp_enqueue_script('pixelavo', PIXELAVO_DIR_URL . 'assets/public/js/main.js', ['jquery'], PIXELAVO_VERSION, true);
             wp_localize_script('pixelavo', 'pixelavo', [
                 'ajax_url' => admin_url('admin-ajax.php'),
@@ -170,8 +169,6 @@ final class Base {
                     'wpforms' => pixelavo_is_wpforms_active(),
                     'ht_contactform' => pixelavo_is_ht_contactform_active(),
                 ],
-                'user_login' => (bool) get_user_meta($user_id, 'pixelavo_user_login', true),
-                'user_signup' => (bool) get_user_meta($user_id, 'pixelavo_user_signup', true),
             ]);
             wp_localize_script('pixelavo', 'pixelavo_event', []);
         }
@@ -360,7 +357,12 @@ final class Base {
      */
     public function user_login($user_login, $user) {
         if(pixelavo_other_event_exists('login')) {
-			update_user_meta($user->ID,'pixelavo_user_login',true);
+            // Don't double-fire Login when this is part of a fresh registration
+            // (CompleteRegistration already fired in the same request).
+            if($this->auth_event_queued('CompleteRegistration')) {
+                return;
+            }
+            $this->fire_server_auth_event('Login', 'trackCustom', $user);
         }
     }
 
@@ -372,8 +374,124 @@ final class Base {
      */
     public function user_register($user_id, $userdata) {
         if(pixelavo_other_event_exists('signup')) {
-			update_user_meta($user_id,'pixelavo_user_signup',true);
+            $this->fire_server_auth_event('CompleteRegistration', 'track', get_userdata($user_id));
         }
+    }
+
+    /**
+     * Fire an identity event (Login / CompleteRegistration) server-side.
+     *
+     * The Conversions API call is made HERE, from the authenticated wp_login /
+     * user_register hook — this is the server-side source of truth and cannot be
+     * forged by a client. A short-lived cookie then carries ONLY the event name
+     * + the shared event_id to the browser, which fires the fbq pixel for
+     * deduplication. The cookie is genuinely non-authoritative: forging it can
+     * at most make the visitor's own browser fire an fbq pixel — it never
+     * triggers a CAPI call and carries no credentials.
+     *
+     * @param string        $event_name
+     * @param string        $track 'track' or 'trackCustom'
+     * @param \WP_User|false $user  The authenticated user (for matching data).
+     * @return void
+     */
+    private function fire_server_auth_event($event_name, $track, $user = null) {
+        $event_id = $event_name . '.' . time() . '.' . wp_generate_password(12, false, false);
+
+        // Make the just-authenticated user available for advanced matching —
+        // wp_login / user_register run before WordPress sets the current user.
+        if($user instanceof \WP_User) {
+            wp_set_current_user($user->ID);
+        }
+
+        // Fire the Conversions API now. Identity events are not page-scoped, so
+        // skip page-targeting and use the site home as the source URL (there is
+        // no queried page in this hook). The request is non-blocking, so login
+        // and registration are not slowed.
+        //
+        // Do NOT call pixelavo_get_event_common_data() here — it runs query
+        // conditionals (is_singular/is_home/...) which trigger a "called
+        // incorrectly" notice this early (before the main query). A minimal,
+        // page-independent payload is correct for an identity event anyway.
+        $common = ['event_url' => home_url('/')];
+        pixelavo_run_conversions_api($event_name, $common, $event_id, null, [
+            'event_source_url' => home_url('/'),
+            'skip_page_check'  => true,
+        ]);
+
+        // Hand only a browser descriptor to the client for the fbq pixel.
+        $this->queue_browser_auth_event($event_name, $track, $event_id);
+    }
+
+    /**
+     * Store a browser-only descriptor (event name + shared event_id) in the
+     * short-lived cookie so the pixel fires fbq once for deduplication. No PII,
+     * no credentials, not a trust boundary.
+     *
+     * @param string $event_name
+     * @param string $track
+     * @param string $event_id
+     * @return void
+     */
+    private function queue_browser_auth_event($event_name, $track, $event_id) {
+        $queue = [];
+        if(!empty($_COOKIE['pixelavo_srv_evt'])) {
+            $existing = json_decode(wp_unslash($_COOKIE['pixelavo_srv_evt']), true);
+            if(is_array($existing)) {
+                $queue = $existing;
+            }
+        }
+
+        $queue[] = [
+            'name'  => $event_name,
+            'track' => ($track === 'track') ? 'track' : 'trackCustom',
+            'id'    => $event_id,
+        ];
+
+        $this->set_server_auth_cookie(wp_json_encode($queue));
+    }
+
+    /**
+     * Whether an event of the given name is already in the pending cookie queue.
+     * @param string $name
+     * @return bool
+     */
+    private function auth_event_queued($name) {
+        if(empty($_COOKIE['pixelavo_srv_evt'])) {
+            return false;
+        }
+        $queue = json_decode(wp_unslash($_COOKIE['pixelavo_srv_evt']), true);
+        if(!is_array($queue)) {
+            return false;
+        }
+        foreach($queue as $event) {
+            if(!empty($event['name']) && $event['name'] === $name) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Set the short-lived carrier cookie for pending auth events.
+     * httponly is intentionally false: the browser JS must read it. It holds no
+     * secret — only event name + server-generated id.
+     * @param string $value
+     * @return void
+     */
+    private function set_server_auth_cookie($value) {
+        // Reflect immediately so same-request reads (register -> login) see it.
+        $_COOKIE['pixelavo_srv_evt'] = $value;
+        if(headers_sent()) {
+            return;
+        }
+        setcookie('pixelavo_srv_evt', $value, [
+            'expires'  => time() + 300,
+            'path'     => defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/',
+            'domain'   => defined('COOKIE_DOMAIN') && COOKIE_DOMAIN ? COOKIE_DOMAIN : '',
+            'secure'   => is_ssl(),
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
     }
 
     /**
