@@ -14,6 +14,8 @@ Add pixel tracking to your WordPress site with Conversions API, server-side trac
 
 ### Pixelavo - Pixel Tracking & AI Ad Tools for WordPress
 
+https://www.youtube.com/watch?v=thiNqrWlTxw
+
 Pixelavo helps you install and manage Facebook Pixel (Meta Pixel) on your WordPress site. It combines two main capabilities:
 
 **1. Pixel Tracking & Conversions API:**
@@ -104,6 +106,13 @@ Pixelavo supports tracking of numerous Facebook pixel events, including:
 2. Add your Facebook Pixel ID
 3. Optionally add an API key from OpenAI or Google for AI features
 4. Configure events and start tracking
+
+### Tutorials:
+How to Setup Facebook Pixel on WordPress Using Pixelavo Plugin
+https://www.youtube.com/watch?v=4pGyczp2XD4
+
+How to Setup Facebook Custom Events by Pixelavo Facebook Pixel WordPress Plugin
+https://www.youtube.com/watch?v=Krn5M2JdIRg
 
 ### Security:
 - AES-256-CBC encryption for API keys
