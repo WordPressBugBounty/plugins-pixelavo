@@ -166,17 +166,42 @@ trait Sanitize_Trait {
 	}
 
 	/**
-	 * Sanitize the checkbox field.
+	 * Sanitize the checkbox field. Some fields registered as 'element' are
+	 * composite objects (nested toggles + multiselects, e.g. form_submission)
+	 * rather than a plain on/off value — preserve their structure instead of
+	 * collapsing them to a checkbox string.
 	 *
-	 * @param string $setting_value
+	 * @param mixed $setting_value
 	 * @param object $errors
 	 * @param array $setting
-	 * @return string
+	 * @return string|array
 	 */
 	public function sanitize_checkbox_field( $setting_value, $errors, $setting ) {
 
+		if ( is_array( $setting_value ) ) {
+			return $this->sanitize_array_recursive( $setting_value );
+		}
+
 		return ( isset( $setting_value ) && 'on' == $setting_value ) ? 'on' : 'off';
 
+	}
+
+	/**
+	 * Recursively sanitize an array's scalar leaves while preserving its
+	 * keys/shape (used for composite settings that aren't a fixed table
+	 * structure).
+	 *
+	 * @param array $value
+	 * @return array
+	 */
+	private function sanitize_array_recursive( $value ) {
+		$sanitized = [];
+
+		foreach ( $value as $key => $item ) {
+			$sanitized[ $key ] = is_array( $item ) ? $this->sanitize_array_recursive( $item ) : sanitize_text_field( $item );
+		}
+
+		return $sanitized;
 	}
 
 }

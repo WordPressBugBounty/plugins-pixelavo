@@ -225,7 +225,7 @@ class Settings extends WP_REST_Controller {
 
                 // Add the option to the list of ones that we need to save.
                 if (!empty($output) && !is_wp_error($output)) {
-                    $data_to_save[$setting['id']] = $settings_received[$setting['id']];
+                    $data_to_save[$setting['id']] = $output;
                 }
 
             }
@@ -288,6 +288,9 @@ class Settings extends WP_REST_Controller {
 
             case 'table':
             case 'event-table':
+                $finalvalue = $this->sanitize_table_field($setting_value, $errors, $setting);
+                break;
+
             case 'multiselect':
             case 'multicheckbox':
                 $finalvalue = $this->sanitize_multiple_field($setting_value, $errors, $setting);

@@ -62,20 +62,19 @@ class Assets {
      * @return array
      */
     public function get_scripts() {
-        $prefix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '.min' : '';
         $scripts = [
             'pixelavoopt-runtime' => [
-                'src'       => PIXELAVO_ASSETS . '/js/runtime'.$prefix.'.js',
+                'src'       => PIXELAVO_ASSETS . '/js/runtime.min.js',
                 'version'   => PIXELAVO_VERSION,
                 'in_footer' => true
             ],
             'pixelavoopt-vendor' => [
-                'src'       => PIXELAVO_ASSETS . '/js/vendors'.$prefix.'.js',
+                'src'       => PIXELAVO_ASSETS . '/js/vendors.min.js',
                 'version'   => PIXELAVO_VERSION,
                 'in_footer' => true
             ],
             'pixelavoopt-admin' => [
-                'src'       => PIXELAVO_ASSETS . '/js/admin'.$prefix.'.js',
+                'src'       => PIXELAVO_ASSETS . '/js/admin.min.js',
                 'deps'      => [ 'jquery', 'pixelavoopt-vendor', 'pixelavoopt-runtime' ],
                 'version'   => PIXELAVO_VERSION,
                 'in_footer' => true
