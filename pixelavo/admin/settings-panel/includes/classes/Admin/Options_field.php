@@ -86,6 +86,7 @@ class Options_Field {
         $puzzle_icon = '';
         $slider_icon = '';
         $other_icon = '';
+        $ai_icon = '';
         
         $list_icon_res = wp_remote_get($list_svg, [
             'sslverify' => false
@@ -1266,6 +1267,19 @@ class Options_Field {
                     ),
                 ),
                 array(
+                    'id'  => 'include_categories',
+                    'name'  => __( 'Include Categories', 'pixelavo' ),
+                    'is_new' => true,
+                    'desc'  => __( 'Only products in the selected categories will be included in your feed. Leave empty to include all products. If a product is also in an excluded category below, it will still be left out.', 'pixelavo' ),
+                    'type' => 'multiselect',
+                    'options' => pixelavo_get_product_categories(),
+                    'toggle' => array(
+                        'key' => 'product_feed',
+                        'operator' => '==',
+                        'value' => 'on'
+                    ),
+                ),
+                array(
                     'id'  => 'exclude_categories',
                     'name'  => __( 'Exclude Categories', 'pixelavo' ),
                     'desc'  => __( 'Selected product categories will not be included in your feed.', 'pixelavo' ),
@@ -1370,6 +1384,20 @@ class Options_Field {
                             'operator' => '==',
                             'value' => 'on'
                         ]
+                    ),
+                    "disabled" => !$this->edd_active
+                ),
+                array(
+                    'id'  => 'edd_include_categories',
+                    'name'  => __( 'Include Categories', 'pixelavo' ),
+                    'is_new' => true,
+                    'desc'  => __( 'Only products in the selected categories will be included in your feed. Leave empty to include all products. If a product is also in an excluded category below, it will still be left out.', 'pixelavo' ),
+                    'type' => 'multiselect',
+                    'options' => pixelavo_get_download_categories(),
+                    'toggle' => array(
+                        'key' => 'edd_product_feed',
+                        'operator' => '==',
+                        'value' => 'on'
                     ),
                     "disabled" => !$this->edd_active
                 ),

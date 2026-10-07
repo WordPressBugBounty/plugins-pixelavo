@@ -295,18 +295,20 @@ function pixelavo_check_pixel_page ($pixel) {
         $page_id = wc_get_page_id('shop');
     }
 
+    $page_list = isset($pixel['specificpage_list']) ? (array) $pixel['specificpage_list'] : [];
+
     if (
         $pixel['pixel_page'] == 'allpages' ||
         (
             $pixel['pixel_page'] == 'specificpage' &&
             !empty($pixel['specificpage_list']) &&
             (
-                in_array($page_id, $pixel['specificpage_list']) ||
-                in_array('term'.$page_id, $pixel['specificpage_list']) ||
-                (in_array('all_posts', $pixel['specificpage_list']) && get_post_type($page_id) == 'post' ) ||
-                (in_array('all_products', $pixel['specificpage_list']) && get_post_type($page_id) == 'product' ) ||
-                (in_array('all_downloads', $pixel['specificpage_list']) && get_post_type($page_id) == 'download' ) ||
-                (is_archive() && !empty(get_queried_object()->taxonomy) && in_array(get_queried_object()->taxonomy, $pixel['specificpage_list']) )
+                in_array($page_id, $page_list) ||
+                in_array('term'.$page_id, $page_list) ||
+                (in_array('all_posts', $page_list) && get_post_type($page_id) == 'post' ) ||
+                (in_array('all_products', $page_list) && get_post_type($page_id) == 'product' ) ||
+                (in_array('all_downloads', $page_list) && get_post_type($page_id) == 'download' ) ||
+                (is_archive() && !empty(get_queried_object()->taxonomy) && in_array(get_queried_object()->taxonomy, $page_list) )
             )
         )
     ) {
@@ -324,9 +326,9 @@ function pixelavo_check_exclude_roles() {
     $user_roles = $current_user->roles;
     
     $settings = get_option('pixelavo_settings', []);
-    $exclude_roles = array_key_exists('exclude_roles', $settings) ? $settings['exclude_roles'] : [];
+    $exclude_roles = is_array($settings) && isset($settings['exclude_roles']) ? (array) $settings['exclude_roles'] : [];
     
-    if(count(array_intersect($user_roles, $exclude_roles))) {
+    if(count(array_intersect((array) $user_roles, $exclude_roles))) {
         return true;
     }
     return false;
@@ -458,7 +460,9 @@ function pixelavo_get_event_common_data() {
         $term = get_category( $cat );
         $data['post_type']  = 'category';
         $data['post_id']    = $cat;
-        $data['page_title'] = $term->name;
+        if ( $term && !is_wp_error( $term ) ) {
+            $data['page_title'] = $term->name;
+        }
     } elseif ( is_tag() ) {
         $slug = get_query_var( 'tag' );
         $term = get_term_by( 'slug', $slug, 'post_tag' );
@@ -679,7 +683,7 @@ function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order =
             continue;
         }
 
-        $token = trim($pixel['access_token']);
+        $token = trim((string) $pixel['access_token']);
         if (empty($token)) {
             continue;
         }

@@ -32,6 +32,9 @@ class Modifier{
         $version = $plugin_data['Version'];
         if(version_compare($version,'1.2.2','>') && !get_option('pixelavo_other_events_setting_modify', false)){
             $other_events_data = get_option('pixelavo_other_events', [] );
+            if(!is_array($other_events_data)) {
+                $other_events_data = [];
+            }
             if(array_key_exists('page_scroll_value', $other_events_data)){
                 update_option('pixelavo_page_scroll', [
                     'page_scroll' => [
@@ -57,6 +60,9 @@ class Modifier{
         }
         if(version_compare($version,'1.2.3','>') && !get_option('pixelavo_setting_modify_124', false)){
             $settings = get_option('pixelavo_settings', [] );
+            if(!is_array($settings)) {
+                $settings = [];
+            }
             
             /* Purchase Evetn Settings Modifier */
             $purchase_event_data = [];

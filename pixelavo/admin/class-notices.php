@@ -501,6 +501,7 @@ if ( ! class_exists( 'Pixelavo_Notice' ) ){
                 return false;
 
             }else{
+                $expired = false;
                 if ( 'user' === $notice['close_by'] ) {
                     $expired = get_user_meta( get_current_user_id(), $notice['id'], true );
                 } elseif ( 'transient' === $notice['close_by'] ) {

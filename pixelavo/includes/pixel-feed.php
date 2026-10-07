@@ -49,9 +49,13 @@ class PixelFeed{
         /**
          * Settings
          */
-        $settings = get_option('pixelavo_settings');
-        $exclude_categories = array_key_exists('exclude_categories', $settings) ? $settings['exclude_categories'] : [];
-        $exclude_tags = array_key_exists('exclude_tags', $settings) ? $settings['exclude_tags'] : [];
+        $settings = get_option('pixelavo_settings', []);
+        if (!is_array($settings)) {
+            $settings = [];
+        }
+        $exclude_categories = isset($settings['exclude_categories']) ? (array) $settings['exclude_categories'] : [];
+        $exclude_tags = isset($settings['exclude_tags']) ? (array) $settings['exclude_tags'] : [];
+        $include_categories = isset($settings['include_categories']) ? array_filter(array_map('absint', (array) $settings['include_categories'])) : [];
 
         /**
          * Products
@@ -78,6 +82,21 @@ class PixelFeed{
                 ]
             ],
         ];
+        // "Include Categories": when set, only products in these categories are kept.
+        // Exclude rules above still apply on top (the clauses are ANDed).
+        if (!empty($include_categories)) {
+            // Drop ids of categories that no longer exist; with none left, treat it as "not set".
+            $existing = get_terms(['taxonomy' => 'product_cat', 'include' => $include_categories, 'fields' => 'ids', 'hide_empty' => false]);
+            $include_categories = is_array($existing) ? array_map('absint', $existing) : [];
+        }
+        if (!empty($include_categories)) {
+            $args['tax_query'][] = [
+                'taxonomy' => 'product_cat',
+                'field' => 'term_id',
+                'terms' => $include_categories,
+                'operator' => 'IN',
+            ];
+        }
         $products = wc_get_products($args);
 
         /**
@@ -95,20 +114,20 @@ class PixelFeed{
          * Feed Channel
          */
         $channel = $rss->addChild('channel');
-        $channel->addChild('title', get_bloginfo('name'));
+        $channel->addChild('title', $this->xml_text(get_bloginfo('name')));
         if(!empty(get_bloginfo('description'))) {
-            $channel->addChild('description', get_bloginfo('description'));
+            $channel->addChild('description', $this->xml_text(get_bloginfo('description')));
         }
-        $channel->addChild('link', get_bloginfo('url'));
+        $channel->addChild('link', $this->xml_text(get_bloginfo('url')));
 
         /**
          * Feed Item
          */
         foreach ($products as $product) {
-            $pro['id'] = $settings['product_identifier'] == 'post_id' ? $product->get_id() : $product->get_sku();
+            $pro['id'] = ($settings['product_identifier'] ?? '') == 'post_id' ? $product->get_id() : $product->get_sku();
             $pro['group_id'] = $pro['id'];
             $pro['title'] = $product->get_title();
-            $pro['desc'] = $settings['description_field'] == 'description' ? $product->get_description() : $product->get_short_description();
+            $pro['desc'] = ($settings['description_field'] ?? '') == 'description' ? $product->get_description() : $product->get_short_description();
             $pro['link'] = $product->get_permalink();
             $pro['image_link'] = $this->get_image_link($product->get_id());
             $pro['brand'] = $this->get_brand($product->get_id());
@@ -137,6 +156,19 @@ class PixelFeed{
     }
 
     /**
+     * Prepare a value for SimpleXML::addChild().
+     *
+     * addChild() does not escape "&", so a bare "&" (or an HTML-only entity such as
+     * &nbsp; / &ndash;) makes libxml raise a warning on some PHP/libxml versions and
+     * the element comes out empty. Decode entities to real characters first, then
+     * escape once. Text that already worked ("&amp;", "&#8217;") is unchanged.
+     */
+    private function xml_text($value) {
+        $value = html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
      * Feed item function
      */
     function feed_item($channel, $product, $namespace, $variation = false) {
@@ -148,30 +180,30 @@ class PixelFeed{
         }
 
         $item = $channel->addChild('item');
-        $item->addChild("g:id", $product['id'], $namespace);
-        $item->addChild("g:item_group_id", $product['group_id'], $namespace);
-        $item->addChild("g:title", $product['title'], $namespace);
-        $item->addChild("g:description", $product['desc'], $namespace);
-        $item->addChild("g:availability", $product['availability'], $namespace);
-        $item->addChild("g:condition", $product['condition'], $namespace);
+        $item->addChild("g:id", $this->xml_text($product['id']), $namespace);
+        $item->addChild("g:item_group_id", $this->xml_text($product['group_id']), $namespace);
+        $item->addChild("g:title", $this->xml_text($product['title']), $namespace);
+        $item->addChild("g:description", $this->xml_text($product['desc']), $namespace);
+        $item->addChild("g:availability", $this->xml_text($product['availability']), $namespace);
+        $item->addChild("g:condition", $this->xml_text($product['condition']), $namespace);
         if($product['price']) {
-            $item->addChild("g:price", $product['price'], $namespace);
+            $item->addChild("g:price", $this->xml_text($product['price']), $namespace);
         }
-        $item->addChild("g:link", $product['link'], $namespace);
+        $item->addChild("g:link", $this->xml_text($product['link']), $namespace);
         if($product['image_link']) {
-            $item->addChild("g:image_link", $product['image_link'], $namespace);
+            $item->addChild("g:image_link", $this->xml_text($product['image_link']), $namespace);
         }
         if(isset($product['google_product_category']) && !empty($product['google_product_category'])) {
-            $item->addChild("g:google_product_category", $product['google_product_category'], $namespace);
+            $item->addChild("g:google_product_category", $this->xml_text($product['google_product_category']), $namespace);
         }
         if(!empty($product['brand'])) {
-            $item->addChild("g:brand", $product['brand'], $namespace);
+            $item->addChild("g:brand", $this->xml_text($product['brand']), $namespace);
         }
         foreach ($product['extra_fields'] as $key => $value) {
-            $item->addChild("g:{$key}", $value, $namespace);
+            $item->addChild("g:{$key}", $this->xml_text($value), $namespace);
         }
         foreach ($product['additional_images'] as $image) {
-            $item->addChild("g:additional_image_link", $image, $namespace);
+            $item->addChild("g:additional_image_link", $this->xml_text($image), $namespace);
         }
     }
 

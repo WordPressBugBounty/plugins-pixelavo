@@ -123,8 +123,8 @@ class PixelEddEventsData{
             global $pixelavoEventsLocalizedData;
 
             $id = get_queried_object_id();
-            if(term_exists($id)) {
-                $term = get_term($id);
+            $term = term_exists($id) ? get_term($id) : null;
+            if($term && !is_wp_error($term)) {
                 $args = [
                     'fields'    => 'ids',
                     'post_type' => 'download',
@@ -139,8 +139,6 @@ class PixelEddEventsData{
                 ];
                 $download_ids = get_posts($args);
 
-                $download = edd_get_download($id);
-
                 $ids = [];
                 $titles = [];
                 $contents = [];
@@ -149,6 +147,9 @@ class PixelEddEventsData{
 
                 foreach ($download_ids as $download_id) {
                     $download = edd_get_download($download_id);
+                    if(!$download) {
+                        continue;
+                    }
                     $ids[] = $download_id;
                     $titles[] = $download->post_title;
                     $contents[] = ['id' => $download_id, 'quantity' => 1];

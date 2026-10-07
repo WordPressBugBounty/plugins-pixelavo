@@ -94,6 +94,13 @@ class SecurityNotices {
             return;
         }
 
+        // The keys only matter for AI API key encryption, so stay quiet (e.g. on a
+        // fresh install) until an OpenAI or Gemini key has actually been saved.
+        $settings = get_option('pixelavo_settings', []);
+        if (!is_array($settings) || (empty($settings['openai_api_key']) && empty($settings['gemini_api_key']))) {
+            return;
+        }
+
         $weak_keys = [];
 
         // Check for default or weak WordPress keys

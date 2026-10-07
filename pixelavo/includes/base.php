@@ -68,7 +68,7 @@ final class Base {
     function remove_admin_notice(){
         $current_screen = get_current_screen();
         $hide_screen = ['toplevel_page_pixelavo', 'update'];
-        if(  in_array( $current_screen->id, $hide_screen) ){
+        if( $current_screen && in_array( $current_screen->id, $hide_screen) ){
             remove_all_actions('admin_notices');
             remove_all_actions('all_admin_notices');
         }
@@ -434,7 +434,7 @@ final class Base {
      */
     private function queue_browser_auth_event($event_name, $track, $event_id) {
         $queue = [];
-        if(!empty($_COOKIE['pixelavo_srv_evt'])) {
+        if(!empty($_COOKIE['pixelavo_srv_evt']) && is_string($_COOKIE['pixelavo_srv_evt'])) {
             $existing = json_decode(wp_unslash($_COOKIE['pixelavo_srv_evt']), true);
             if(is_array($existing)) {
                 $queue = $existing;
@@ -456,7 +456,7 @@ final class Base {
      * @return bool
      */
     private function auth_event_queued($name) {
-        if(empty($_COOKIE['pixelavo_srv_evt'])) {
+        if(empty($_COOKIE['pixelavo_srv_evt']) || !is_string($_COOKIE['pixelavo_srv_evt'])) {
             return false;
         }
         $queue = json_decode(wp_unslash($_COOKIE['pixelavo_srv_evt']), true);

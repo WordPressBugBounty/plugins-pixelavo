@@ -99,6 +99,7 @@ class Menu {
             ],
             'labels'        => [
                 'pro' => __( 'Pro', 'pixelavo' ),
+                'new' => __( 'New', 'pixelavo' ),
                 'modal' => [
                     'title' => __( 'BUY PRO', 'pixelavo' ),
                     'buynow' => __( 'Buy Now', 'pixelavo' ),

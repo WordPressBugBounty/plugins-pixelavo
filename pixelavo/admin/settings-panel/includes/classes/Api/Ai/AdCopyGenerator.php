@@ -77,8 +77,11 @@ class AdCopyGenerator {
     public function generate_ad_copy($request) {
         try {
             $settings = $request['data'];
+            if ( ! is_array( $settings ) ) {
+                return $this->create_error_response( 'Invalid request data.', 'invalid_request_data' );
+            }
 
-            $model = $settings['ai_model'];
+            $model = isset( $settings['ai_model'] ) && is_string( $settings['ai_model'] ) ? $settings['ai_model'] : '';
             $ai = explode('-', $model, 2)[0];
 
             unset( $settings['ai_model'], $settings['ai_type'] );
@@ -263,7 +266,7 @@ class AdCopyGenerator {
             }
 
             // Process successful response with message
-            if ( $processed_response['success'] === true && ! empty( $processed_response['message'] ) ) {
+            if ( $processed_response['success'] === true && ! empty( $processed_response['message'] ) && is_string( $processed_response['message'] ) ) {
                 $json_text = preg_replace('/^```json\s*/', '', $processed_response['message']);
                 $json_text = preg_replace('/\s*```$/', '', $json_text);
                 $json_text = trim($json_text);
@@ -358,7 +361,10 @@ class AdCopyGenerator {
     private function format_text_variations($variations) {
         $formatted = array();
         
-        foreach ($variations as $text) {
+        foreach (is_array($variations) ? $variations : [] as $text) {
+            if (!is_string($text)) {
+                continue;
+            }
             $length = strlen($text);
             $status = $this->get_text_status($text, $length);
             

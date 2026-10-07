@@ -3,8 +3,8 @@ Contributors: hasthemes, zenaulislam, aslamhasib, yeasinrony
 Tags: facebook pixel, meta pixel, conversion tracking, server side tracking, WooCommerce
 Requires at least: 5.0
 Requires PHP: 7.4
-Tested up to: 7.0
-Stable tag: 1.5.5
+Tested up to: 7.1
+Stable tag: 1.5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -190,6 +190,14 @@ This plugin connects to several third-party services to provide enhanced functio
 By using this plugin, you acknowledge that data may be transmitted to the above-mentioned third-party services only when you explicitly consent to diagnostic data sharing or when generating product feeds.
 
 == Changelog ==
+
+= Version: 1.5.6 - Date: 07-10-2026 =
+* Added: "Include Categories" option for the WooCommerce and EDD product feeds, so a feed can contain only selected categories.
+* Improved: The WordPress security keys notice now only appears once an AI API key is saved, so it no longer shows on fresh installs.
+* Fixed: Fatal error on the WooCommerce and EDD product feed URLs when plugin settings had not been saved yet.
+* Fixed: Special characters such as "&" in product titles producing an invalid product feed.
+* Fixed: PHP 8 warnings and TypeErrors caused by empty or unexpected option values and missing terms or downloads.
+* Tested: Compatibility with the latest version of WordPress.
 
 = Version: 1.5.5 - Date: 04-08-2026 =
 * Fixed: Potential issue where Pixel and Custom Event list entries could fail to save correctly.

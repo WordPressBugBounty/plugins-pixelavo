@@ -17,7 +17,7 @@ trait Sanitize_Trait {
 	 * @return string
 	 */
 	public function sanitize_text_field( $setting_value, $errors, $setting ) {
-		return trim( wp_strip_all_tags( $setting_value, true ) );
+		return trim( wp_strip_all_tags( is_scalar( $setting_value ) ? (string) $setting_value : '', true ) );
 	}
 
 	/**
@@ -29,7 +29,7 @@ trait Sanitize_Trait {
 	 * @return string
 	 */
 	public function sanitize_textarea_field( $setting_value, $errors, $setting ) {
-		return stripslashes( wp_kses_post( $setting_value ) );
+		return stripslashes( wp_kses_post( is_scalar( $setting_value ) ? (string) $setting_value : '' ) );
 	}
 
 	/**

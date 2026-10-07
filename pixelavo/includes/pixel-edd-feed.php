@@ -49,9 +49,13 @@ class PixelEddFeed{
         /**
          * Settings
          */
-        $settings = get_option('pixelavo_settings');
-        $exclude_categories = array_key_exists('edd_exclude_categories', $settings) ? $settings['edd_exclude_categories'] : [];
-        $exclude_tags = array_key_exists('edd_exclude_tags', $settings) ? $settings['edd_exclude_tags'] : [];
+        $settings = get_option('pixelavo_settings', []);
+        if (!is_array($settings)) {
+            $settings = [];
+        }
+        $exclude_categories = isset($settings['edd_exclude_categories']) ? (array) $settings['edd_exclude_categories'] : [];
+        $exclude_tags = isset($settings['edd_exclude_tags']) ? (array) $settings['edd_exclude_tags'] : [];
+        $include_categories = isset($settings['edd_include_categories']) ? array_filter(array_map('absint', (array) $settings['edd_include_categories'])) : [];
 
         /**
          * Products
@@ -80,6 +84,21 @@ class PixelEddFeed{
                 ]
             ],
         ];
+        // "Include Categories": when set, only downloads in these categories are kept.
+        // Exclude rules above still apply on top (the clauses are ANDed).
+        if (!empty($include_categories)) {
+            // Drop ids of categories that no longer exist; with none left, treat it as "not set".
+            $existing = get_terms(['taxonomy' => 'download_category', 'include' => $include_categories, 'fields' => 'ids', 'hide_empty' => false]);
+            $include_categories = is_array($existing) ? array_map('absint', $existing) : [];
+        }
+        if (!empty($include_categories)) {
+            $args['tax_query'][] = [
+                'taxonomy' => 'download_category',
+                'field' => 'term_id',
+                'terms' => $include_categories,
+                'operator' => 'IN',
+            ];
+        }
         $download_ids = get_posts($args);
 
         /**
@@ -97,20 +116,23 @@ class PixelEddFeed{
          * Feed Channel
          */
         $channel = $rss->addChild('channel');
-        $channel->addChild('title', get_bloginfo('name'));
+        $channel->addChild('title', $this->xml_text(get_bloginfo('name')));
         if(!empty(get_bloginfo('description'))) {
-            $channel->addChild('description', get_bloginfo('description'));
+            $channel->addChild('description', $this->xml_text(get_bloginfo('description')));
         }
-        $channel->addChild('link', get_bloginfo('url'));
+        $channel->addChild('link', $this->xml_text(get_bloginfo('url')));
 
         /**
          * Feed Item
          */
         foreach ($download_ids as $id) {
             $download = edd_get_download($id);
-            $dowl['id'] = $settings['edd_product_identifier'] == 'post_id' ? $download->ID : $download->get_sku();
+            if (!$download) {
+                continue;
+            }
+            $dowl['id'] = ($settings['edd_product_identifier'] ?? '') == 'post_id' ? $download->ID : $download->get_sku();
             $dowl['title'] = $download->post_title;
-            $dowl['desc'] = $settings['edd_description_field'] == 'description' ? $download->post_content : $download->post_excerpt;
+            $dowl['desc'] = ($settings['edd_description_field'] ?? '') == 'description' ? $download->post_content : $download->post_excerpt;
             $dowl['link'] = get_permalink($dowl['id']);
             $dowl['image_link'] = $this->get_image_link($dowl['id']);
             $dowl['brand'] = $this->get_brand($dowl['id']);
@@ -124,29 +146,42 @@ class PixelEddFeed{
     }
 
     /**
+     * Prepare a value for SimpleXML::addChild().
+     *
+     * addChild() does not escape "&", so a bare "&" (or an HTML-only entity such as
+     * &nbsp; / &ndash;) makes libxml raise a warning on some PHP/libxml versions and
+     * the element comes out empty. Decode entities to real characters first, then
+     * escape once. Text that already worked ("&amp;", "&#8217;") is unchanged.
+     */
+    private function xml_text($value) {
+        $value = html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
      * Feed item function
      */
     function feed_item($channel, $download, $namespace) {
 
         $item = $channel->addChild('item');
-        $item->addChild("g:id", $download['id'], $namespace);
-        $item->addChild("g:title", $download['title'], $namespace);
+        $item->addChild("g:id", $this->xml_text($download['id']), $namespace);
+        $item->addChild("g:title", $this->xml_text($download['title']), $namespace);
         if(!empty($download['desc'])) {
-            $item->addChild("g:description", $download['desc'], $namespace);
+            $item->addChild("g:description", $this->xml_text($download['desc']), $namespace);
         }
-        $item->addChild("g:availability", $download['availability'], $namespace);
-        $item->addChild("g:condition", $download['condition'], $namespace);
+        $item->addChild("g:availability", $this->xml_text($download['availability']), $namespace);
+        $item->addChild("g:condition", $this->xml_text($download['condition']), $namespace);
         if($download['price']) {
-            $item->addChild("g:price", $download['price'], $namespace);
+            $item->addChild("g:price", $this->xml_text($download['price']), $namespace);
         }
-        $item->addChild("g:link", $download['link'], $namespace);
+        $item->addChild("g:link", $this->xml_text($download['link']), $namespace);
         if($download['image_link']) {
-            $item->addChild("g:image_link", $download['image_link'], $namespace);
+            $item->addChild("g:image_link", $this->xml_text($download['image_link']), $namespace);
         }
         if(!empty($download['brand'])) {
-            $item->addChild("g:brand", $download['brand'], $namespace);
+            $item->addChild("g:brand", $this->xml_text($download['brand']), $namespace);
         }
-        $item->addChild("g:google_product_category", $download['google_product_category'], $namespace);
+        $item->addChild("g:google_product_category", $this->xml_text($download['google_product_category']), $namespace);
     }
 
     /**

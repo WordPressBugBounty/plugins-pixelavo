@@ -1017,6 +1017,54 @@ input.pixelavo-opt-field,
     background: rgba(255, 0, 0, 0.1);
 }
 
+/* New badge */
+.pixelavo-admin-new-badge {
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 11px;
+    letter-spacing: 0.4px;
+
+    -ms-flex-item-align: center;
+
+        -ms-grid-row-align: center;
+
+        align-self: center;
+
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 7px;
+
+    text-align: center;
+    text-transform: uppercase;
+    vertical-align: middle;
+
+    color: #FFFFFF;
+    border-radius: 60px;
+    background: #008A20;
+
+    -webkit-animation: pixelavo-new-badge-pulse 2s ease-out infinite;
+            animation: pixelavo-new-badge-pulse 2s ease-out infinite;
+}
+
+@-webkit-keyframes pixelavo-new-badge-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 138, 32, 0.45); }
+    70% { box-shadow: 0 0 0 5px rgba(0, 138, 32, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 138, 32, 0); }
+}
+
+@keyframes pixelavo-new-badge-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 138, 32, 0.45); }
+    70% { box-shadow: 0 0 0 5px rgba(0, 138, 32, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 138, 32, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pixelavo-admin-new-badge {
+        -webkit-animation: none;
+                animation: none;
+    }
+}
+
 .pixelavo-admin-field-element {
     position: relative;
 }
