@@ -205,11 +205,21 @@ class PixelEventsData{
      */
     function pixelavo_ajax_remove_from_cart() {
         check_ajax_referer('pixelavo_ajax_event_nonce', 'nonce');
+        // Throttle per-IP (shared bucket with pixelavo_event): nopriv endpoint spends the admin's CAPI quota.
+        if (!pixelavo_event_rate_ok()) {
+            wp_send_json_error(['message' => 'Too many requests'], 429);
+        }
         if(pixelavo_pixel_status()) {
             $product_id = !empty($_POST['product_id']) ? intval(wp_unslash($_POST['product_id'])) : '';
-            $quantity = !empty($_POST['product_quantity']) ? intval(wp_unslash($_POST['product_quantity'])) : '';
+            $quantity = isset($_POST['product_quantity']) ? max(1, (int) wp_unslash($_POST['product_quantity'])) : 1;
             $product = wc_get_product($product_id);
+            // Published products only (and a variation's parent), so draft/private titles and prices never leak.
+            if($product && ($product->get_status() !== 'publish' || ($product->get_parent_id() && get_post_status($product->get_parent_id()) !== 'publish'))) {
+                $product = false;
+            }
             $common_params = !empty($_POST['common_params']) ? array_map('sanitize_text_field', (array)wp_unslash($_POST['common_params'])) : [];
+            // Client-supplied; keep only page-context keys so value/currency/content_ids can't be overridden.
+            $common_params = array_intersect_key($common_params, array_flip(pixelavo_common_param_keys()));
             $event_id = 'RemoveFromCart.'.$product_id.'.'.time();
             if ( $product ) {
                 $content_type = $product->get_type() === 'variable' ? 'product_group' : 'product';

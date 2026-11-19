@@ -828,6 +828,56 @@ function pixelavo_is_allowed_event($event_name) {
 }
 
 /**
+ * Page-context keys a client may send as common_params.
+ * Must mirror the keys pixelavo_get_event_common_data() emits.
+ *
+ * @return array
+ */
+function pixelavo_common_param_keys() {
+    return (array) apply_filters('pixelavo_common_param_keys', ['event_url', 'post_type', 'page_title', 'post_id', 'plugin', 'user_role']);
+}
+
+/**
+ * Data keys a client may send with a given pixelavo_event event.
+ *
+ * Mirrors exactly what the free + Pro front-end JS sends per event. Pro's
+ * events are listed here (not only via Pro's filter) so an older Pro build
+ * keeps its server-side params when free updates first.
+ *
+ * @param string $event_name
+ * @return array
+ */
+function pixelavo_allowed_event_data_keys($event_name) {
+    $keys = pixelavo_common_param_keys();
+
+    if($event_name === 'Download') {
+        $keys = array_merge($keys, ['download_url', 'download_type', 'download_name']);
+    } elseif(strpos($event_name, 'FormSubmission_') === 0) {
+        $keys = array_merge($keys, ['form', 'form_id']);
+    } elseif(in_array($event_name, ['InternalLinks', 'ExternalLinks'], true)) {
+        $keys[] = 'target_link';
+    } elseif(substr($event_name, -5) === 'Video') {
+        $keys = array_merge($keys, ['videoProvider', 'videoUrl', 'videoTitle', 'videoDuration', 'videoCurrentTime', 'videoPercent']);
+    } else {
+        // Admin-defined custom events (Pro JS): their configured params + additional user info.
+        foreach((array) pixelavo_get_custom_events() as $custom_event) {
+            if(!is_array($custom_event) || ($custom_event['event_name'] ?? '') !== $event_name) {
+                continue;
+            }
+            $keys = array_merge($keys, ['referrer', 'language', 'content_category', 'tags']);
+            foreach((array) ($custom_event['event_params'] ?? []) as $param) {
+                if(!empty($param['name'])) {
+                    // Same transform as Pro main.js: first space → '_', then lowercase.
+                    $keys[] = strtolower(preg_replace('/ /', '_', (string) $param['name'], 1));
+                }
+            }
+        }
+    }
+
+    return (array) apply_filters('pixelavo_allowed_event_data_keys', $keys, $event_name);
+}
+
+/**
  * Sanitize client-supplied event data before it is forwarded to the CAPI.
  *
  * All events permitted through this endpoint are valueless, so monetary fields
@@ -847,6 +897,13 @@ function pixelavo_sanitize_event_data($event_name, $data) {
 
     // Valueless by default; a filter may opt a specific event into carrying value.
     $valueless = (bool) apply_filters('pixelavo_event_is_valueless', true, $event_name);
+
+    // Drop any key the front-end never sends for this event (e.g. forged content_ids).
+    $allowed_keys = pixelavo_allowed_event_data_keys($event_name);
+    if(!$valueless) {
+        $allowed_keys = array_merge($allowed_keys, ['value', 'currency']);
+    }
+    $data = array_intersect_key($data, array_flip($allowed_keys));
 
     foreach($data as $key => $value) {
         // Strip monetary fields from valueless events.

@@ -231,12 +231,19 @@ class PixelEddEventsData{
      */
     function remove_from_cart_data() {
         check_ajax_referer('pixelavo_ajax_event_nonce', 'ajax_nonce');
+        // Throttle per-IP (shared bucket with pixelavo_event): nopriv endpoint spends the admin's CAPI quota.
+        if (!pixelavo_event_rate_ok()) {
+            wp_send_json_error(['message' => 'Too many requests'], 429);
+        }
 
         if(pixelavo_pixel_status()) {
             $id = isset($_POST['download_id']) ? sanitize_text_field(wp_unslash($_POST['download_id'])) : '';
-            $quantity = isset($_POST['download_quantity']) ? sanitize_text_field(wp_unslash($_POST['download_quantity'])) : '';
+            $quantity = isset($_POST['download_quantity']) ? max(1, (int) wp_unslash($_POST['download_quantity'])) : 1;
             $common_params = isset($_POST['common_params']) ? array_map('sanitize_text_field', (array)wp_unslash($_POST['common_params'])) : [];
-            $download = edd_get_download($id);
+            // Client-supplied; keep only page-context keys so value/currency/content_ids can't be overridden.
+            $common_params = array_intersect_key($common_params, array_flip(pixelavo_common_param_keys()));
+            // Published downloads only, so draft/private titles and prices never leak.
+            $download = get_post_status($id) === 'publish' ? edd_get_download($id) : false;
             $event_id = 'removeFromCart.'.$id.'.'.time();
             if ( $download ) {
                 $content_type = $download->has_variable_prices() ? 'product_group' : 'product';

@@ -98,30 +98,32 @@ class PixelAjaxEventsData{
         $form_id = !empty($_POST['formId']) ? intval(wp_unslash($_POST['formId'])) : '';
         $form_name = !empty($_POST['form']) ? sanitize_text_field(wp_unslash($_POST['form'])) : '';
         $form_title = '';
+        // Only forms that can render publicly, so draft/private form titles never leak.
         if($form_name === 'cf7') {
             $form = get_post($form_id);
-            if ($form && 'wpcf7_contact_form' === $form->post_type) {
+            if ($form && 'wpcf7_contact_form' === $form->post_type && 'publish' === $form->post_status) {
                 $form_title = $form->post_title;
             }
         }
 
         if($form_name === 'wpform' && function_exists('wpforms')) {
             $form = wpforms()->form->get($form_id);
-            if ($form) {
+            if ($form && 'publish' === $form->post_status) {
                 $form_title = $form->post_title;
             }
         }
 
         if($form_name === 'fluentform' && function_exists('wpFluent')) {
             $form = wpFluent()->table('fluentform_forms')->find($form_id);
-            if ($form) {
+            // Mirrors Fluent Forms itself, which refuses to render only 'unpublished' forms.
+            if ($form && 'unpublished' !== $form->status) {
                 $form_title = $form->title;
             }
         }
 
         if ($form_name === 'ht_contactform') {
             $form = get_post($form_id);
-            if ($form && 'ht_form' === $form->post_type) {
+            if ($form && 'ht_form' === $form->post_type && 'publish' === $form->post_status) {
                 $form_title = $form->post_title;
             }
         }
