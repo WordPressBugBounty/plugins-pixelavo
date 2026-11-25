@@ -644,6 +644,14 @@ function pixelavo_run_conversions_api($eventName, $data, $eventID = '', $order =
     $client_ip = pixelavo_get_client_ip();
     $client_user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
 
+    // Order events can run from a webhook, cron or admin request: use the buyer's
+    // IP/UA that WooCommerce recorded at checkout, not this request's.
+    if (class_exists('WC_Order') && $order instanceof WC_Order && $order->get_customer_ip_address()) {
+        $client_ip = $order->get_customer_ip_address();
+        // client_user_agent is required for website events: keep the request's if the order has none.
+        $client_user_agent = $order->get_customer_user_agent() ?: $client_user_agent;
+    }
+
     $advanced_matching_data = [];
     if(function_exists('pixelavo_get_advance_matching_data')) {
         $advanced_matching_data = pixelavo_get_advance_matching_data($order);

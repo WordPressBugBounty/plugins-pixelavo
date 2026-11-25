@@ -4,7 +4,7 @@ Tags: facebook pixel, meta pixel, conversion tracking, server side tracking, Woo
 Requires at least: 5.0
 Requires PHP: 7.4
 Tested up to: 7.1
-Stable tag: 1.5.7
+Stable tag: 1.5.8
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -190,6 +190,9 @@ This plugin connects to several third-party services to provide enhanced functio
 By using this plugin, you acknowledge that data may be transmitted to the above-mentioned third-party services only when you explicitly consent to diagnostic data sharing or when generating product feeds.
 
 == Changelog ==
+
+= Version: 1.5.8 - Date: 25-11-2026 =
+* Fixed: Purchase, Refund and Subscription server events sent from a payment webhook, scheduled task or admin action now use the customer's IP address and browser recorded at checkout instead of the server's or admin's.
 
 = Version: 1.5.7 - Date: 19-11-2026 =
 * Security: Hardened the public RemoveFromCart and server-side event endpoints. Client-supplied event parameters are now limited to known fields, so value, currency and product data can no longer be overridden. RemoveFromCart is rate-limited, validates quantity and only fires for published products, and form titles are only returned for published forms. Thanks to kta1kri for the responsible disclosure.
